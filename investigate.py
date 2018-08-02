@@ -12,5 +12,8 @@ for sdc in sdc_devices:
     os.mkdir(mnt_path)
 
     if not os.path.ismount(sdc):
+        print("Mounting {} to {}".format(sdc, mnt_path))
         subprocess.call(['mount', os.path.join('/dev', sdc), mnt_path])
+    else:
+        print("{} is ALREADY mounted at {}".format(sdc, mnt_path))
 
