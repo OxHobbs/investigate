@@ -4,71 +4,97 @@ import re
 import subprocess
 import gzip
 import shutil
-from azure_storage import BlockBlobService
+import socket
+from datetime import datetime as dt
+import time
+from azure.storage.blob import BlockBlobService
 
-# with open('/tmp/test', 'w') as f:
-#     f.writelines(sys.version)
 
-sa_name = sys.argv[1]
-sa_key = sys.argv[2]
+def get_sdc_devices():
+    return sorted([d for d in os.listdir('/dev') if re.match(r'sdc\d+', d)])
 
-sdc_devices = sorted([d for d in os.listdir('/dev') if re.match(r'sdc\d+', d)])
 
-for sdc in sdc_devices:
-    mnt_path = os.path.join('/mnt', sdc)
+def mount_sdc_devices(sdc_devices):
+    for sdc in sdc_devices:
+        mnt_path = os.path.join('/mnt', sdc)
 
-    if not os.path.exists(mnt_path):
-        os.mkdir(mnt_path)
+        if not os.path.exists(mnt_path):
+            os.mkdir(mnt_path)
 
-    if not os.path.ismount(mnt_path):
-        print("Mounting {} to {}".format(sdc, mnt_path))
-        subprocess.call(['mount', os.path.join('/dev', sdc), mnt_path])
+        if not os.path.ismount(mnt_path):
+            print("Mounting {} to {}".format(sdc, mnt_path))
+            subprocess.call(['mount', os.path.join('/dev', sdc), mnt_path])
+        else:
+            print("{} is ALREADY mounted at {}".format(sdc, mnt_path))
+
+
+def find_messages(sdc_devices):
+    for sdc in sdc_devices:
+        mnt_path = os.path.join('/mnt', sdc)
+        messages_path = os.path.join(mnt_path, 'var', 'log', 'messages')
+
+        if os.path.exists(messages_path):
+            print('Found messages log in path: {}'.format(mnt_path))
+            return messages_path
+
+
+def archive_messages(messages_path):
+    messages_arch_path = get_messages_archive_path()
+
+    with open(messages_path, 'rb') as f_in, gzip.open(messages_arch_path, 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
+
+
+def get_subject_container_name():
+    return "{}-files".format(socket.gethostname().lower())
+
+
+def get_messages_archive_path():
+    return os.path.join('/tmp', 'messages_archive.txt.gz')
+
+def create_storage_container(block_blob_service):
+    container_gen = block_blob_service.list_containers()
+    containers = [c.name for c in container_gen]
+    subject_container_name = get_subject_container_name()
+
+    if subject_container_name not in containers:
+        print('Creating container {} in storage account {}'.format(subject_container_name, block_blob_service.account_name))
+        block_blob_service.create_container(subject_container_name)
     else:
-        print("{} is ALREADY mounted at {}".format(sdc, mnt_path))
-    
-    messages_path = os.path.join(mnt_path, 'var', 'log', 'messages')
-    messages_arch_path = os.path.join('/tmp', 'messages_archive.txt.gz')
-
-    if os.path.exists(messages_path):
-        print('Found messages log in path: {}'.format(mnt_path))
-
-        with open(messages_path, 'rb') as f_in, gzip.open(messages_arch_path, 'wb') as f_out:
-            shutil.copyfileobj(f_in, f_out)
+        print('Container: {} already exists'.format(subject_container_name))
 
 
-# Create the BlockBlockService that is used to call the Blob service for the storage account
-block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key) 
+def upload_blob(block_blob_service):
+    blob_name = "messages-{}".format(dt.utcnow().strftime('%Y%m%d'))
+    subject_container_name = get_subject_container_name()
 
-# Create a container called 'quickstartblobs'.
-# container_name ='quickstartblobs'
-container_name = "{}-files".format(socket.gethostname().lower())
-block_blob_service.create_container(container_name) 
+    blob_gen = block_blob_service.list_blobs(subject_container_name)
+    blobs = [b.name for b in blob_gen]
 
-# Set the permission so the blobs are public.
-block_blob_service.set_container_acl(container_name, public_access=PublicAccess.Container)
-
-
-
-# Create a file in Documents to test the upload and download.
-local_path=os.path.expanduser("~\Documents")
-local_file_name ="QuickStart_" + str(uuid.uuid4()) + ".txt"
-full_path_to_file =os.path.join(local_path, local_file_name)
-
-# Write text to the file.
-file = open(full_path_to_file,  'w')
-file.write("Hello, World!")
-file.close()
-
-print("Temp file = " + full_path_to_file)
-print("\nUploading to Blob storage as blob" + local_file_name)
-
-# Upload the created file, use local_file_name for the blob name
-block_blob_service.create_blob_from_path(container_name, local_file_name, full_path_to_file)
+    if blob_name not in blobs:
+        print('Creating blob, {}, in container, {}'.format(blob_name, subject_container_name))
+        block_blob_service.create_blob_from_path(
+            container_name=subject_container_name,
+            blob_name=blob_name,
+            file_path=get_messages_archive_path()
+        )
+    else:
+        print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
 
 
+def main():
+    sa_name = sys.argv[1]
+    sa_key = sys.argv[2]
 
-# List the blobs in the container
-print("\nList blobs in the container")
-generator = block_blob_service.list_blobs(container_name)
-for blob in generator:
-    print("\t Blob name: " + blob.name)
+    sdc_devices = get_sdc_devices()
+    mount_sdc_devices(sdc_devices)
+    msg_path = find_messages(sdc_devices)
+    archive_messages(msg_path)
+
+    block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix='core.usgovcloudapi.net')
+    create_storage_container(block_blob_service)
+    upload_blob(block_blob_service)
+
+
+if __name__ == '__main__':
+    main()
