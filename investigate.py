@@ -46,7 +46,8 @@ def archive_messages(messages_path):
 
 
 def get_subject_container_name():
-    return "{}-files".format(socket.gethostname().lower())
+    return "{}-files".format(
+        socket.gethostname().lower().replace('_', '-').replace('.', ''))
 
 
 def get_messages_archive_path():
