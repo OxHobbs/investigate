@@ -62,6 +62,10 @@ def archive_messages(messages_path):
         shutil.copyfileobj(f_in, f_out)
 
 
+def write_messages_to_tmp(messages_path):
+    shutil.copyfile(messages_path, get_messages_tmp_path())
+
+
 def get_subject_container_name():
     return "{}-files".format(
         socket.gethostname().lower().split('.')[0].replace('_', '-'))
@@ -71,19 +75,49 @@ def get_messages_archive_path():
     return os.path.join('/tmp', 'messages_archive.txt.gz')
 
 
+def get_messages_tmp_path():
+    return os.path.join('/tmp', 'messages')
+
+def get_kernels_archive_path():
+    return os.path.join('/tmp', 'kernels.txt')
+
+
 def find_boot_sdc(sdc_devices):
     for sdc in sdc_devices:
         mnt_path = os.path.join('/mnt', sdc)
-        boot_path = os.path.join(mnt_path, 'boot')
+        boot_path = os.path.join(mnt_path, 'grub2')
 
         if os.path.exists(boot_path):
             print("Found boot partition at: {}".format(boot_path))
-            return boot_path
+            return mnt_path
 
 
 def get_kernels_in_boot(boot_path):
-    pass
+    kernels = [x for x in os.listdir(boot_path) if re.match('vmlinuz', x)]
+
+    kernel_dict_list = []
+
+    for kernel in kernels:
+        kernel_path = os.path.join(boot_path, kernel)
+        kernel_ctime = os.path.getctime(kernel_path)
+        kernel_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(kernel_ctime))
+        kernel_dict_list.append({
+                'kernel_name': kernel,
+                'creation_date': kernel_time})
+
+    sorted_kernel_list = sorted(kernel_dict_list, key=lambda x: x['creation_date'], reverse=True)
     
+    return sorted_kernel_list
+
+
+def write_kernels_in_boot(kernels):
+    with open(get_kernels_archive_path(), 'w') as f_in:
+        for kernel in kernels:
+            f_in.write("{} : {}".format(
+                kernel.get('kernel_name'),
+                kernel.get('creation_date')))
+            f_in.write('\n')
+
 
 def create_storage_container(block_blob_service):
     container_gen = block_blob_service.list_containers()
@@ -97,22 +131,43 @@ def create_storage_container(block_blob_service):
         print('Container: {} already exists'.format(subject_container_name))
 
 
-def upload_blob(block_blob_service):
-    blob_name = "messages-{}".format(dt.utcnow().strftime('%Y%m%d'))
-    subject_container_name = get_subject_container_name()
+def get_blobs_to_upload():
+    fdate = dt.utcnow().strftime('%Y%m%d')
+    blob_list = [{
+        'blob_name': "messages-gzip-{}".format(fdate),
+        'blob_path': get_messages_archive_path()
+    },
+    {
+        'blob_name': "kernel-list-{}".format(fdate),
+        'blob_path': get_kernels_archive_path()
+    },
+    {
+        'blob_name': "messages-txt-{}".format(fdate),
+        'blob_path': get_messages_tmp_path()
+    }]
 
+    return blob_list
+
+
+def upload_blobs(block_blob_service):
+    blobs_to_upload = get_blobs_to_upload()
+    subject_container_name = get_subject_container_name()
     blob_gen = block_blob_service.list_blobs(subject_container_name)
     blobs = [b.name for b in blob_gen]
 
-    if blob_name not in blobs:
-        print('Creating blob, {}, in container, {}'.format(blob_name, subject_container_name))
-        block_blob_service.create_blob_from_path(
-            container_name=subject_container_name,
-            blob_name=blob_name,
-            file_path=get_messages_archive_path()
-        )
-    else:
-        print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
+    for blob in blobs_to_upload:
+        blob_name = blob.get('blob_name')
+        blob_path = blob.get('blob_path')
+
+        if blob_name not in blobs:
+            print('Creating blob, {}, in container, {}'.format(blob_name, subject_container_name))
+            block_blob_service.create_blob_from_path(
+                container_name=subject_container_name,
+                blob_name=blob_name,
+                file_path=blob_path
+            )
+        else:
+            print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
 
 
 def get_endpoint_suffix(cloud):
@@ -172,13 +227,19 @@ def main():
         print_verbose(verbose, "Did not find messages")
 
     archive_messages(msg_path)
+    write_messages_to_tmp(msg_path)
+
+    boot_sdc = find_boot_sdc(sdc_devices)
+    kernels = get_kernels_in_boot(boot_sdc)
+    write_kernels_in_boot(kernels)
 
     block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix=cloud_endpoint)
 
     print_verbose(verbose, "Creating the storage container: {}".format(get_subject_container_name()))
     create_storage_container(block_blob_service)
     print_verbose(verbose, "Uploding blobs to container")
-    upload_blob(block_blob_service)
+
+    upload_blobs(block_blob_service)
 
 
 if __name__ == '__main__':
