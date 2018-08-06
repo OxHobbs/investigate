@@ -71,6 +71,20 @@ def get_messages_archive_path():
     return os.path.join('/tmp', 'messages_archive.txt.gz')
 
 
+def find_boot_sdc(sdc_devices):
+    for sdc in sdc_devices:
+        mnt_path = os.path.join('/mnt', sdc)
+        boot_path = os.path.join(mnt_path, 'boot')
+
+        if os.path.exists(boot_path):
+            print("Found boot partition at: {}".format(boot_path))
+            return boot_path
+
+
+def get_kernels_in_boot(boot_path):
+    pass
+    
+
 def create_storage_container(block_blob_service):
     container_gen = block_blob_service.list_containers()
     containers = [c.name for c in container_gen]
