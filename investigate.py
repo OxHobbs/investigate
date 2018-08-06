@@ -131,7 +131,27 @@ def create_storage_container(block_blob_service):
         print('Container: {} already exists'.format(subject_container_name))
 
 
-def get_blobs_to_upload():
+def get_grub_cfg_files(boot_sdc):
+    return [x for x in os.listdir(os.path.join(boot_sdc, 'grub2')) if re.match('grub.cfg', x)]
+
+
+def get_grub_tmp_paths(boot_sdc):
+    return [os.path.join('/tmp', 'grub', x) for x in get_grub_cfg_files(boot_sdc)]
+
+
+def copy_grub_cfg_files(boot_sdc):
+    grub_files = get_grub_cfg_files(boot_sdc)
+    grub_temp_root = os.path.join('/tmp', 'grub')
+
+    if not os.path.exists(grub_temp_root):
+        os.mkdir(grub_temp_root)
+
+    for gfile in grub_files:
+        full_path = os.path.join(boot_sdc, 'grub2', gfile)
+        shutil.copyfile(full_path, os.path.join('/tmp', 'grub', gfile))
+
+
+def get_blobs_to_upload(boot_sdc):
     fdate = dt.utcnow().strftime('%Y%m%d')
     blob_list = [{
         'blob_name': "messages-gzip-{}".format(fdate),
@@ -146,11 +166,21 @@ def get_blobs_to_upload():
         'blob_path': get_messages_tmp_path()
     }]
 
+    grub_tmp_files = get_grub_tmp_paths(boot_sdc)
+
+    for gfile in grub_tmp_files:
+        _, filename = os.path.split(gfile)
+        ffilename = filename.replace('.', '-')
+        blob_list.append({
+            'blob_name': ffilename,
+            'blob_path': gfile
+        })
+
     return blob_list
 
 
-def upload_blobs(block_blob_service):
-    blobs_to_upload = get_blobs_to_upload()
+def upload_blobs(block_blob_service, boot_sdc):
+    blobs_to_upload = get_blobs_to_upload(boot_sdc)
     subject_container_name = get_subject_container_name()
     blob_gen = block_blob_service.list_blobs(subject_container_name)
     blobs = [b.name for b in blob_gen]
@@ -164,8 +194,7 @@ def upload_blobs(block_blob_service):
             block_blob_service.create_blob_from_path(
                 container_name=subject_container_name,
                 blob_name=blob_name,
-                file_path=blob_path
-            )
+                file_path=blob_path)
         else:
             print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
 
@@ -228,13 +257,15 @@ def main():
     kernels = get_kernels_in_boot(boot_sdc)
     write_kernels_in_boot(kernels)
 
+    copy_grub_cfg_files(boot_sdc)
+
     block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix=cloud_endpoint)
 
     print_verbose(verbose, "Creating the storage container: {}".format(get_subject_container_name()))
     create_storage_container(block_blob_service)
     print_verbose(verbose, "Uploding blobs to container")
 
-    upload_blobs(block_blob_service)
+    upload_blobs(block_blob_service, boot_sdc)
 
 
 if __name__ == '__main__':
