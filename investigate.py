@@ -78,6 +78,7 @@ def get_messages_archive_path():
 def get_messages_tmp_path():
     return os.path.join('/tmp', 'messages')
 
+
 def get_kernels_archive_path():
     return os.path.join('/tmp', 'kernels.txt')
 
@@ -88,13 +89,12 @@ def find_boot_sdc(sdc_devices):
         boot_path = os.path.join(mnt_path, 'grub2')
 
         if os.path.exists(boot_path):
-            print("Found boot partition at: {}".format(boot_path))
+            print("Found boot partition at: {}".format(mnt_path))
             return mnt_path
 
 
 def get_kernels_in_boot(boot_path):
     kernels = [x for x in os.listdir(boot_path) if re.match('vmlinuz', x)]
-
     kernel_dict_list = []
 
     for kernel in kernels:
@@ -184,7 +184,7 @@ def pargs():
     parser.add_argument('-a', '--storage-account-name', help='Provide the name of the storage account', required=True)
     parser.add_argument('-k', '--key', help='Proivde the storage account key', required=True)
     parser.add_argument('-c', '--cloud',
-        help='Provide the Cloud environment of the Storage account',
+        help='Provide the Cloud Environment of the storage account',
         choices=('azureusgovernment', 'azurecloud'),
         type=str.lower,
         default='AzureCloud')
@@ -207,13 +207,13 @@ def main():
     sa_name, sa_key, cloud, verbose = pargs()
     cloud_endpoint = get_endpoint_suffix(cloud)
 
-    print_verbose(verbose, "Args provide: {}, {}, {}, {}".format(
+    print_verbose(verbose, "Args provided: {}, {}, {}, {}".format(
         sa_name,
         sa_key,
         cloud,
         verbose
     ))
-    print_verbose(verbose, "Will use storage endpoing suffix: {}".format(cloud_endpoint))
+    print_verbose(verbose, "Will use storage endpoint suffix: {}".format(cloud_endpoint))
 
 
     sdc_devices = get_sdc_devices()
@@ -221,11 +221,6 @@ def main():
     mount_sdc_devices(sdc_devices)
 
     msg_path = find_messages(sdc_devices)
-    if msg_path:
-        print_verbose(verbose, "Found messages at {}".format(msg_path))
-    else:
-        print_verbose(verbose, "Did not find messages")
-
     archive_messages(msg_path)
     write_messages_to_tmp(msg_path)
 
