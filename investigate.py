@@ -1,3 +1,16 @@
+"""Collects troubleshooting data and publishes it to an Azure Storage Account
+
+:param storage-account-name: The name of the storage account to which the artifacts will be published
+:type storage-account-name: str
+:param access-key: The key that provides access to the storage account specifed in arg[1]
+:param access-key: str
+:returns: None
+:rtype: None
+
+v0.2.0
+"""
+
+
 import sys
 import os
 import re
@@ -52,6 +65,7 @@ def get_subject_container_name():
 
 def get_messages_archive_path():
     return os.path.join('/tmp', 'messages_archive.txt.gz')
+
 
 def create_storage_container(block_blob_service):
     container_gen = block_blob_service.list_containers()
