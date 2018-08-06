@@ -2,8 +2,11 @@
 
 :param storage-account-name: The name of the storage account to which the artifacts will be published
 :type storage-account-name: str
-:param access-key: The key that provides access to the storage account specifed in arg[1]
-:param access-key: str
+:param key: The key that provides access to the storage account specifed in arg[1]
+:param key: str
+:param cloud: The cloud environment in which the storage account exists.  Default is AzureCloud.  Valid values
+              are AzureCloud and AzureUSGovernment
+:param cloud: str
 :returns: None
 :rtype: None
 
@@ -98,17 +101,69 @@ def upload_blob(block_blob_service):
         print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
 
 
-def main():
-    sa_name = sys.argv[1]
-    sa_key = sys.argv[2]
+def get_endpoint_suffix(cloud):
+    if cloud.lower() == 'azureusgovernment':
+        return 'core.usgovcloudapi.net'
+    elif cloud.lower() == 'azurecloud':
+        return 'core.windows.net'
+    
+    return None
+
+
+def pargs():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', '--storage-account-name', help='Provide the name of the storage account', required=True)
+    parser.add_argument('-k', '--key', help='Proivde the storage account key', required=True)
+    parser.add_argument('-c', '--cloud',
+        help='Provide the Cloud environment of the Storage account',
+        choices=('azureusgovernment', 'azurecloud'),
+        type=str.lower,
+        default='AzureCloud')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Get verbose output from the cmd')
+    
+    args = parser.parse_args()
+    sa_name = args.storage_account_name
+    sa_key = args.key
+    cloud = args.cloud
+    verbose = args.verbose
+    
+    return sa_name, sa_key, cloud, verbose
+
+def print_verbose(enabled, msg):
+    if enabled:
+        print(msg)
+
+
+def main():    
+    sa_name, sa_key, cloud, verbose = pargs()
+    cloud_endpoint = get_endpoint_suffix(cloud)
+
+    print_verbose(verbose, "Args provide: {}, {}, {}, {}".format(
+        sa_name,
+        sa_key,
+        cloud,
+        verbose
+    ))
+    print_verbose(verbose, "Will use storage endpoing suffix: {}".format(cloud_endpoint))
+
 
     sdc_devices = get_sdc_devices()
+    print_verbose(verbose, "Found {} sdc devices: {}".format(len(sdc_devices), sdc_devices))
     mount_sdc_devices(sdc_devices)
+
     msg_path = find_messages(sdc_devices)
+    if msg_path:
+        print_verbose(verbose, "Found messages at {}".format(msg_path))
+    else:
+        print_verbose(verbose, "Did not find messages")
+
     archive_messages(msg_path)
 
-    block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix='core.usgovcloudapi.net')
+    block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix=cloud_endpoint)
+
+    print_verbose(verbose, "Creating the storage container: {}".format(get_subject_container_name()))
     create_storage_container(block_blob_service)
+    print_verbose(verbose, "Uploding blobs to container")
     upload_blob(block_blob_service)
 
 
