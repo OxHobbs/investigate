@@ -2,7 +2,7 @@
 
 :param storage-account-name: The name of the storage account to which the artifacts will be published
 :type storage-account-name: str
-:param key: The key that provides access to the storage account specifed in arg[1]
+:param key: The key that provides access to the storage account specified in arg[1]
 :param key: str
 :param cloud: The cloud environment in which the storage account exists.  Default is AzureCloud.  Valid values
               are AzureCloud and AzureUSGovernment
