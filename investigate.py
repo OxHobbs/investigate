@@ -20,6 +20,7 @@ import subprocess
 import gzip
 import shutil
 import socket
+from collections import namedtuple
 from datetime import datetime as dt
 import time
 from azure.storage.blob import BlockBlobService
@@ -174,33 +175,22 @@ def copy_azure_log_to_tmp(azure_log):
 
 
 def get_blobs_to_upload():
+    Blob = namedtuple('Blob', 'name, file')
     fdate = dt.utcnow().strftime('%Y%m%d')
-    blob_list = [{
-            'blob_name': "messages-gzip-{}".format(fdate),
-            'blob_path': get_messages_archive_path()
-        },
-        {
-            'blob_name': "kernel-list-{}".format(fdate),
-            'blob_path': get_kernels_archive_path()
-        },
-        {
-            'blob_name': "messages-txt-{}".format(fdate),
-            'blob_path': get_messages_tmp_path()
-        },
-        {
-            'blob_name': "waagent-log-{}".format(fdate),
-            'blob_path': get_azure_log_tmp()
-        }]
+
+    blob_list = [
+        Blob("messages-gzip-{}".format(fdate), get_messages_archive_path()),
+        Blob("kernel-list-{}".format(fdate), get_kernels_archive_path()),
+        Blob("messages-txt-{}".format(fdate), get_messages_tmp_path()),
+        Blob("waagent-log-{}".format(fdate), get_azure_log_tmp())
+    ]
 
     grub_tmp_files = get_grub_tmp_paths()
 
     for gfile in grub_tmp_files:
         _, filename = os.path.split(gfile)
         ffilename = filename.replace('.', '-')
-        blob_list.append({
-            'blob_name': ffilename,
-            'blob_path': gfile
-        })
+        blob_list.append(Blob(ffilename, gfile))
 
     return blob_list
 
@@ -212,17 +202,14 @@ def upload_blobs(block_blob_service):
     blobs = [b.name for b in blob_gen]
 
     for blob in blobs_to_upload:
-        blob_name = blob.get('blob_name')
-        blob_path = blob.get('blob_path')
-
-        if blob_name not in blobs:
-            print('Creating blob, {}, in container, {}'.format(blob_name, subject_container_name))
+        if blob.name not in blobs:
+            print('Creating blob, {}, in container, {}'.format(blob.name, subject_container_name))
             block_blob_service.create_blob_from_path(
                 container_name=subject_container_name,
-                blob_name=blob_name,
-                file_path=blob_path)
+                blob_name=blob.name,
+                file_path=blob.file)
         else:
-            print('Blob: {} is already in container ({})'.format(blob_name, subject_container_name))
+            print('Blob: {} is already in container ({})'.format(blob.name, subject_container_name))
 
 
 def get_endpoint_suffix(cloud):
