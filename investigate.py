@@ -136,7 +136,8 @@ def get_grub_cfg_files(boot_sdc):
 
 
 def get_grub_tmp_paths():
-    return [os.path.abspath(x) for x in os.listdir(os.path.join('/tmp', 'grub')) if re.match('grub.cfg', x)]
+    tmp = os.path.join('/tmp', 'grub')
+    return [os.path.join(tmp, x) for x in os.listdir(tmp) if re.match('grub.cfg', x)]
 
 
 def copy_grub_cfg_files(boot_sdc):
