@@ -20,6 +20,7 @@ import subprocess
 import gzip
 import shutil
 import socket
+import tempfile
 from collections import namedtuple
 from datetime import datetime as dt
 import time
@@ -65,21 +66,24 @@ def write_messages_to_tmp(messages_path):
     shutil.copyfile(messages_path, get_messages_tmp_path())
 
 
+def gettmp():
+    return tempfile.gettempdir()
+
 def get_subject_container_name():
     return "{}-files".format(
         socket.gethostname().lower().split('.')[0].replace('_', '-'))
 
 
 def get_messages_archive_path():
-    return os.path.join('/tmp', 'messages_archive.txt.gz')
+    return os.path.join(gettmp(), 'messages_archive.txt.gz')
 
 
 def get_messages_tmp_path():
-    return os.path.join('/tmp', 'messages')
+    return os.path.join(gettmp(), 'messages')
 
 
 def get_kernels_archive_path():
-    return os.path.join('/tmp', 'kernels.txt')
+    return os.path.join(gettmp(), 'kernels.txt')
 
 
 def find_boot_sdc(sdc_devices):
@@ -136,24 +140,24 @@ def get_grub_cfg_files(boot_sdc):
 
 
 def get_grub_tmp_paths():
-    tmp = os.path.join('/tmp', 'grub')
+    tmp = os.path.join(gettmp(), 'grub')
     return [os.path.join(tmp, x) for x in os.listdir(tmp) if re.match('grub.cfg', x)]
 
 
 def copy_grub_cfg_files(boot_sdc):
     grub_files = get_grub_cfg_files(boot_sdc)
-    grub_temp_root = os.path.join('/tmp', 'grub')
+    grub_temp_root = os.path.join(gettmp(), 'grub')
 
     if not os.path.exists(grub_temp_root):
         os.mkdir(grub_temp_root)
 
     for gfile in grub_files:
         full_path = os.path.join(boot_sdc, 'grub2', gfile)
-        shutil.copyfile(full_path, os.path.join('/tmp', 'grub', gfile))
+        shutil.copyfile(full_path, os.path.join(gettmp(), 'grub', gfile))
 
 
 def get_azure_log_tmp():
-    return os.path.join('/tmp', 'azure_logs', 'waagent.log')
+    return os.path.join(gettmp(), 'azure_logs', 'waagent.log')
 
 
 def find_azure_log(sdc_devices):
@@ -183,7 +187,8 @@ def get_blobs_to_upload():
         Blob("messages-gzip-{}".format(fdate), get_messages_archive_path()),
         Blob("kernel-list-{}".format(fdate), get_kernels_archive_path()),
         Blob("messages-txt-{}".format(fdate), get_messages_tmp_path()),
-        Blob("waagent-log-{}".format(fdate), get_azure_log_tmp())
+        Blob("waagent-log-{}".format(fdate), get_azure_log_tmp()),
+        Blob("hit-errors-{}".format(fdate), get_hits_file()),
     ]
 
     grub_tmp_files = get_grub_tmp_paths()
@@ -220,6 +225,46 @@ def get_endpoint_suffix(cloud):
         return 'core.windows.net'
 
     return None
+
+
+def search_messages_for_errors(messages_path):
+    Hit = namedtuple('Hit', 'line_number, line_text')
+    hits = []
+
+    matchers = [
+        r'(.*)Kernel panic',
+        r'(.*)unable to handle kernel NULL pointer',
+        r'(.*)task swapper:.* blocked for more',
+        r'(.*)No root device'
+    ]
+
+    for matcher in matchers:
+        print("Looking for matches with: {}".format(matcher))
+        with open(messages_path, 'r') as fin:
+            for line_num, line_text in enumerate(fin):
+                match = re.match(matcher, line_text)
+                if match:
+                    print('Found a match at line #{}'.format(line_num))
+                    print('Line found: {}'.format(line_text))
+                    print
+                    hits.append(Hit(line_num, line_text))
+            
+    return hits
+
+
+def get_hits_file():
+    return os.path.join(gettmp(), 'hits.txt')    
+
+
+def write_hits_to_file(hits):
+    if not hits:
+        print('No hits found')
+        return None
+
+    with open(get_hits_file(), 'w') as fout:
+        fout.write('Hits found in Messages\n\n')
+        for hit in hits:
+            fout.write('Line Number: {}\nLine Text: {}\n'.format(hit.line_number, unicode(hit.line_text, errors='ignore')))
 
 
 def pargs():
@@ -275,6 +320,9 @@ def main():
 
     az_log = find_azure_log(sdc_devices)
     copy_azure_log_to_tmp(az_log)
+
+    hits = search_messages_for_errors(msg_path)
+    write_hits_to_file(hits)
 
     block_blob_service = BlockBlobService(account_name=sa_name, account_key=sa_key, endpoint_suffix=cloud_endpoint)
 
