@@ -1,0 +1,75 @@
+Example of error messages that you can see
+
+A) No root device found
+
+dracut Warning: No root device “block:/dev/disk/by-uuid/6d089360-3e14-401d-91d0-378f3fd09332” found
+dracut Warning: Boot has failed. To debug this issue add “rdshell” to the kernel command line.
+dracut Warning: Signal caught!
+Kernel panic – not syncing: Attempted to kill init!
+Pid: 1, comm: init Not tainted 2.6.32-504.12.2.el6.x86_64 #1
+Call Trace:
+[<ffffffff8152933c>] ? panic+0xa7/0x16f
+[<ffffffff8107a5f2>] ? do_exit+0x862/0x870
+[<ffffffff8118fa25>] ? fput+0x25/0x30
+[<ffffffff8107a658>] ? do_group_exit+0x58/0xd0
+[<ffffffff8107a6e7>] ? sys_exit_group+0x17/0x20
+[<ffffffff8100b072>] ? system_call_fastpath+0x16/0x1b
+
+B) Example of a kernel timeout error
+
+INFO: task swapper:1 blocked for more than 120 seconds.
+Not tainted 2.6.32-504.8.1.el6.x86_64 #1
+“echo 0 > /proc/sys/kernel/hung_task_timeout_secs” disables this message.
+swapper       D 0000000000000000     0     1      0 0x00000000
+ffff88010f64fde0 0000000000000046 ffff88010f64fd50 ffffffff81074f95
+0000000000005c2f ffffffff8100bb8e ffff88010f64fe50 0000000000100000
+0000000000000002 00000000fffb73e0 ffff88010f64dab8 ffff88010f64ffd8
+Call Trace:
+[<ffffffff81074f95>] ? __call_console_drivers+0x75/0x90
+[<ffffffff8100bb8e>] ? apic_timer_interrupt+0xe/0x20
+[<ffffffff81075d51>] ? vprintk+0x251/0x560
+[<ffffffff8152a862>] schedule_timeout+0x192/0x2e0
+[<ffffffff810874f0>] ? process_timeout+0x0/0x10
+[<ffffffff8152a9ce>] schedule_timeout_uninterruptible+0x1e/0x20
+[<ffffffff81089650>] msleep+0x20/0x30
+[<ffffffff81c2a571>] prepare_namespace+0x30/0x1a9
+[<ffffffff81c2992a>] kernel_init+0x2e1/0x2f7
+[<ffffffff8100c20a>] child_rip+0xa/0x20
+[<ffffffff81c29649>] ? kernel_init+0x0/0x2f7
+[<ffffffff8100c200>] ? child_rip+0x0/0x20
+
+C) Example of a kernel null point error
+
+Pid: 242, comm: async/1 Not tainted 2.6.32-504.12.2.el6.x86_64 #1
+Call Trace:
+[<ffffffff81177468>] ? kmem_cache_create+0x538/0x5a0
+[<ffffffff8152aede>] ? mutex_lock+0x1e/0x50
+[<ffffffff81370424>] ? attribute_container_add_device+0x104/0x150
+[<ffffffffa009c1de>] ? storvsc_device_alloc+0x4e/0xa0 [hv_storvsc]
+[<ffffffff8138a1dc>] ? scsi_alloc_sdev+0x1fc/0x280
+[<ffffffff8138a739>] ? scsi_probe_and_add_lun+0x4d9/0xe10
+[<ffffffff8128e62d>] ? kobject_set_name_vargs+0x6d/0x70
+[<ffffffff8152aede>] ? mutex_lock+0x1e/0x50
+[<ffffffff81370424>] ? attribute_container_add_device+0x104/0x150
+[<ffffffff81367ae9>] ? get_device+0x19/0x20
+[<ffffffff8138b440>] ? scsi_alloc_target+0x2d0/0x300
+[<ffffffff8138b661>] ? __scsi_scan_target+0x121/0x740
+[<ffffffff8138bd07>] ? scsi_scan_channel+0x87/0xb0
+[<ffffffff8138bde0>] ? scsi_scan_host_selected+0xb0/0x190
+[<ffffffff8138bf51>] ? do_scsi_scan_host+0x91/0xa0
+[<ffffffff8138c13c>] ? do_scan_async+0x1c/0x150
+[<ffffffff810a7086>] ? async_thread+0x116/0x2e0
+[<ffffffff81064b90>] ? default_wake_function+0x0/0x20
+[<ffffffff810a6f70>] ? async_thread+0x0/0x2e0
+[<ffffffff8109e66e>] ? kthread+0x9e/0xc0
+[<ffffffff8100c20a>] ? child_rip+0xa/0x20
+[<ffffffff8109e5d0>] ? kthread+0x0/0xc0
+[<ffffffff8100c200>] ? child_rip+0x0/0x20
+BUG: unable to handle kernel NULL pointer dereference at 0000000000000008
+IP: [<ffffffffa009c0a0>] storvsc_device_destroy+0x20/0x50 [hv_storvsc]
+PGD 0
+
+D) Example of a Kernel Panic error
+
+Invalid op code: 0000 [#2] [11427.908676] — end trace 61a458bb863d7f0f ]—
+Kernel panic – not syncing: attempted to kill the idle task!
