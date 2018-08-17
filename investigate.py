@@ -69,6 +69,7 @@ def write_messages_to_tmp(messages_path):
 def gettmp():
     return tempfile.gettempdir()
 
+
 def get_subject_container_name():
     return "{}-files".format(
         socket.gethostname().lower().split('.')[0].replace('_', '-'))
@@ -257,14 +258,14 @@ def get_hits_file():
 
 
 def write_hits_to_file(hits):
-    if not hits:
-        print('No hits found')
-        return None
-
     with open(get_hits_file(), 'w') as fout:
         fout.write('Hits found in Messages\n\n')
+        if not hits:
+            print('No hits found')
+            fout.write('No hits found\n')
         for hit in hits:
-            fout.write('Line Number: {}\nLine Text: {}\n'.format(hit.line_number, unicode(hit.line_text, errors='ignore')))
+            fout.write('Line Number: {}\nLine Text: {}\n\n'.format(hit.line_number,
+                                                                   unicode(hit.line_text, errors='ignore')))
 
 
 def pargs():
